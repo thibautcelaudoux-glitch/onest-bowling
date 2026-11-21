@@ -79,6 +79,17 @@ html,body{height:100%;margin:0;background:var(--ink);color:var(--fg);font-family
 .lbl-v{color:var(--fg);letter-spacing:.04em;text-transform:none;font-weight:500;margin-left:6px}
 .row input:disabled,.tog input:disabled{opacity:.35}
 .chip:disabled{opacity:.32;cursor:not-allowed}
+.xp{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(620px,calc(100% - 24px));max-height:calc(100% - 28px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;box-sizing:border-box;background:#141120;border:1px solid var(--line);border-radius:12px;padding:16px 16px 18px;z-index:35;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.xp[hidden]{display:none}
+.xp h2{font:700 22px var(--f-display);margin:0 0 2px;letter-spacing:.02em}
+.xp h3{font:600 12px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--accent2);margin:16px 0 7px}
+.xp-cfg{margin:0;font:400 11.5px var(--f-mono);color:var(--muted)}
+.xp-note{margin:7px 0 0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.xp .btn{width:100%}.xp .btn:disabled,.xp .chip:disabled{opacity:.55;cursor:progress}
+.xp-prev{margin-top:14px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;line-height:0}
+#xpOut[data-kind="photo"] .xp-prev{background:#05040a}
+.xp-prev img{width:100%;height:auto;display:block;-webkit-touch-callout:default;user-select:auto}
+.xp-acts{display:flex;gap:6px;align-items:stretch;margin-top:10px}.xp-acts .btn{flex:1;width:auto}.xp-acts .chip{flex:none}
 #tvBox{border:1px solid rgba(255,90,31,.38);border-radius:8px;padding:10px 10px 11px;background:rgba(255,90,31,.06);gap:9px}
 #tvBox[hidden]{display:none}
 .lblrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -243,6 +254,8 @@ details.adv > div{display:flex;flex-direction:column;gap:14px}
     <div class="tvsum" id="tvSum"></div>
   </div>
 
+  <button class="btn ghost wide" id="xpOpen">Exporter photos et plans<span class="nw">V4</span></button>
+
   <div class="grp">
     <div class="lbl">Jeux</div>
     <div class="games" id="games">
@@ -370,6 +383,23 @@ details.adv > div{display:flex;flex-direction:column;gap:14px}
 <div class="toast" id="toast" hidden></div>
 <div id="power" hidden><b id="powV">24 km/h</b><i><span id="powB"></span></i><small id="powT">relâche pour lancer</small></div>
 
+<div class="xp" id="xp" hidden role="dialog" aria-labelledby="xpT">
+  <button class="x" id="xpX" aria-label="Fermer">×</button>
+  <h2 id="xpT">Exporter</h2>
+  <p class="xp-cfg" id="xpCfg"></p>
+  <h3>Photos</h3>
+  <div class="row2"><button class="btn" id="xpPhoto">Photo de cette vue</button><button class="btn ghost" id="xpSheet">Planche 4 vues</button></div>
+  <p class="xp-note">Image 16:9 avec la configuration en légende. Règle d'abord la vue, l'éclairage et le jeu comme tu veux les montrer.</p>
+  <h3>Plan de principe</h3>
+  <button class="btn" id="xpPlan">Générer le plan A3</button>
+  <p class="xp-note">Élévation de face, détail d'une paire, coupes, vue en plan et nomenclature, cotés en mètres.</p>
+  <div id="xpOut" hidden>
+    <div class="xp-prev"><img id="xpImg" alt=""></div>
+    <div class="xp-acts"><button class="btn" id="xpDl">Télécharger</button><button class="chip" id="xpPdf" hidden>PDF A3</button><button class="chip" id="xpSvg" hidden>SVG vectoriel</button></div>
+    <p class="xp-note"><span id="xpInfo"></span> · sur téléphone, un appui long sur l'image permet aussi de l'enregistrer.</p>
+  </div>
+</div>
+
 <div class="card" id="card" hidden role="dialog" aria-labelledby="cardTitle">
   <button class="x" id="cardX" aria-label="Fermer">×</button>
   <span class="badge" id="cardBadge"></span>
@@ -423,22 +453,26 @@ const geo={hC:3.6,L:9,R:1.3,y0:0.7,off:0.32};
 let screenType='tv';
 const EG={...geo};
 /* --- V4 : mur de TV (16:9, cadre de 15 mm par bord comme un écran pro 98") --- */
-const TV={d:98,port:true,rowsWanted:1,layWanted:'lane',bez:0.015,depth:0.085,rows:1,lay:'lane',maxRows:1,xs:[],n:0,aw:1,ah:1,ow:1,oh:1,fit:{lane:true,pair:true,wall:true}};
+const TV={d:98,port:true,rowsWanted:1,layWanted:'lane',bez:0.015,depth:0.085,rows:1,lay:'lane',maxRows:1,xs:[],n:0,aw:1,ah:1,ow:1,oh:1,cw:1.536,span:1,vh:2.7,fit:{lane:true,pair:true,wall:true}};
 const isTV=()=>screenType==='tv';
 function tvDims(){const k=TV.d*0.0254/Math.sqrt(337),a=16*k,b=9*k;TV.aw=TV.port?b:a;TV.ah=TV.port?a:b;TV.ow=TV.aw+2*TV.bez;TV.oh=TV.ah+2*TV.bez;}
 function tvLayout(){
   const W=Lay.W,ow=TV.ow;
   TV.fit={lane:ow<=LANE_GUT+DIV_IN-0.01,pair:ow<=2*LANE_GUT+DIV_IN+DIV_PAIR-0.01,wall:true};
   let lay=TV.layWanted;if(lay==='lane'&&!TV.fit.lane)lay='pair';if(lay==='pair'&&!TV.fit.pair)lay='wall';TV.lay=lay;
-  if(lay==='lane')TV.xs=Lay.laneX.slice();
-  else if(lay==='pair')TV.xs=Lay.pairX.slice();
-  else{const n=Math.max(1,Math.floor((W+1e-6)/ow));TV.xs=[];for(let i=0;i<n;i++)TV.xs.push(-n*ow/2+ow*(i+0.5));}
+  // Chaque colonne de TV affiche en entier sa « cellule » de l'image : sa piste, sa paire de pistes, ou sa part du mur.
+  // L'image est donc mise à l'échelle de la dalle, jamais rognée ; TV.vh est la hauteur de cette image en mètres « dessinés ».
+  if(lay==='lane'){TV.xs=Lay.laneX.slice();TV.cw=LANE_GUT;}
+  else if(lay==='pair'){TV.xs=Lay.pairX.slice();TV.cw=2*LANE_GUT+DIV_IN;}
+  else{const n=Math.max(1,Math.floor((W+1e-6)/ow));TV.xs=[];for(let i=0;i<n;i++)TV.xs.push(-n*ow/2+ow*(i+0.5));TV.span=n*ow;TV.cw=W;}
+  TV.vh=TV.rows*TV.oh*(lay==='wall'?W/TV.span:TV.cw/TV.aw);
   TV.n=TV.xs.length*TV.rows;
 }
 function syncEG(){Object.assign(EG,geo);if(screenType!=='curve'){EG.R=0;EG.L=0;}
   if(isTV()){tvDims();TV.maxRows=Math.max(1,Math.min(3,Math.floor((CEIL-0.02-EG.y0)/TV.oh+1e-6)));TV.rows=Math.min(TV.rowsWanted,TV.maxRows);EG.hC=EG.y0+TV.rows*TV.oh;}}
 const isCurve=()=>screenType==='curve',hasScreen=()=>screenType==='curve'||screenType==='flat'||screenType==='tv';
-const vLen=()=>EG.hC-EG.R-EG.y0;
+const gLen=()=>EG.hC-EG.R-EG.y0;        // hauteur réelle de la partie verticale de l'écran
+const vLen=()=>isTV()?TV.vh:gLen();      // hauteur de l'image dessinée (mise à l'échelle sur un mur de TV)
 const Lay={};
 function computeLayout(){
   const N=P.N,pairs=N/2;
@@ -718,20 +752,21 @@ const rects={v:new T.RectAreaLight(0xffffff,4,1,1),a:new T.RectAreaLight(0xfffff
 Object.values(rects).forEach(r=>screenGroup.add(r));
 
 function profile(s){
-  const Hv=vLen(),R=EG.R,arc=Math.PI*R/2,y0=EG.y0,ZS=Lay.ZS;
+  const Hv=gLen(),R=EG.R,arc=Math.PI*R/2,y0=EG.y0,ZS=Lay.ZS;
   if(s<=Hv)return{y:y0+s,z:ZS,ny:0,nz:1};
   if(s<=Hv+arc){const p=(s-Hv)/R;return{y:y0+Hv+R*Math.sin(p),z:ZS+R-R*Math.cos(p),ny:-Math.sin(p),nz:Math.cos(p)};}
   return{y:EG.hC,z:ZS+R+(s-Hv-arc),ny:-1,nz:0};
 }
 function profileYatZ(z){ // hauteur du bord de l'écran au-dessus d'un point z (pour les écrans latéraux)
-  const ZS=Lay.ZS,R=EG.R,yc=EG.y0+vLen(),zc=ZS+R;
+  const ZS=Lay.ZS,R=EG.R,yc=EG.y0+gLen(),zc=ZS+R;
   if(z<=zc){const d=zc-z;return yc+Math.sqrt(Math.max(0,R*R-d*d));}
   return EG.hC;
 }
 function buildScreen(){
   syncEG();
-  const Hv=vLen(),R=EG.R,arc=Math.PI*R/2,W=Lay.W,ZS=Lay.ZS;
+  const Hv=gLen(),R=EG.R,arc=Math.PI*R/2,W=Lay.W,ZS=Lay.ZS;
   totalS=Hv+arc+EG.L;sC=Hv+arc;
+  if(isTV()){tvLayout();totalS=sC=TV.vh;}
   const ss=[];for(let i=0;i<=Math.ceil(Hv/0.5);i++)ss.push(Math.min(Hv,i*0.5));
   if(arc>0)for(let i=1;i<=48;i++)ss.push(Hv+arc*i/48);
   const nc=Math.ceil(EG.L/0.5);for(let i=1;i<=nc;i++)ss.push(sC+EG.L*i/nc);
@@ -743,11 +778,11 @@ function buildScreen(){
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;}
   if(screenMesh){screenMesh.geometry.dispose();housingMesh.geometry.dispose();}
   else{screenMesh=new T.Mesh(undefined,scrMat);housingMesh=new T.Mesh(undefined,M.housing);screenMesh.frustumCulled=false;housingMesh.frustumCulled=false;screenGroup.add(screenMesh,housingMesh);}
-  if(isTV()){tvLayout();screenMesh.geometry=makeTV();housingMesh.geometry=new T.BufferGeometry();}
+  if(isTV()){screenMesh.geometry=makeTV();housingMesh.geometry=new T.BufferGeometry();}
   else{screenMesh.geometry=make(0);housingMesh.geometry=make(0.09);}
   housingMesh.visible=!isTV();buildTVWall();
   // canvas : budget ≈ 2,6 Mpx pour garder une mise à jour fluide
-  PX=Math.max(30,Math.min(120,Math.sqrt(2.6e6/(W*totalS)),4096/W,4096/totalS));
+  PX=Math.max(30,Math.min(isTV()?220:120,Math.sqrt(2.6e6/(W*totalS)),4096/W,4096/totalS));
   scr.width=Math.round(W*PX);scr.height=Math.round(totalS*PX);
   scrTex.dispose();scrTex.needsUpdate=true;
   rects.v.width=W;rects.v.height=Math.max(0.1,Hv);rects.v.position.set(0,EG.y0+Hv/2,ZS+0.03);rects.v.rotation.set(0,Math.PI,0);
@@ -763,8 +798,10 @@ const tvBodyMat=new T.MeshStandardMaterial({color:0x0b0b0e,roughness:0.42,metaln
 const tvWallMat=new T.MeshStandardMaterial({color:0x060608,roughness:0.95});
 function makeTV(){
   const pos=[],uv=[],idx=[],W=Lay.W,ZS=Lay.ZS;let k=0;
-  TV.xs.forEach(cx=>{for(let r=0;r<TV.rows;r++){
-    const x0=cx-TV.aw/2,x1=cx+TV.aw/2,s0=r*TV.oh+TV.bez,s1=s0+TV.ah,ya=EG.y0+s0,yb=EG.y0+s1,u0=(x0+W/2)/W,u1=(x1+W/2)/W,v0=s0/totalS,v1=s1/totalS;
+  const colH=TV.rows*TV.oh,wall=TV.lay==='wall';
+  TV.xs.forEach((cx,i)=>{const u0=wall?(i*TV.ow+TV.bez)/TV.span:(cx-TV.cw/2+W/2)/W,u1=wall?(i*TV.ow+TV.bez+TV.aw)/TV.span:(cx+TV.cw/2+W/2)/W;
+    for(let r=0;r<TV.rows;r++){
+    const x0=cx-TV.aw/2,x1=cx+TV.aw/2,s0=r*TV.oh+TV.bez,s1=s0+TV.ah,ya=EG.y0+s0,yb=EG.y0+s1,v0=s0/colH,v1=s1/colH;
     pos.push(x0,ya,ZS,x1,ya,ZS,x0,yb,ZS,x1,yb,ZS);uv.push(u0,v0,u1,v0,u0,v1,u1,v1);idx.push(k,k+1,k+2,k+1,k+3,k+2);k+=4;}});
   const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;}
 function buildTVWall(){
@@ -860,7 +897,7 @@ function buildDims(){
   dims.children.slice().forEach(c=>{dims.remove(c);c.geometry&&c.geometry.dispose();c.material&&c.material.map&&c.material.map.dispose();});
   const {HEAD_Z,ZS,W}=Lay;
   const X=W/2+0.35,V=(x,y,z)=>new T.Vector3(x,y,z);
-  const Hv=vLen(),y0=EG.y0,cz0=ZS+EG.R,cz1=cz0+EG.L;
+  const Hv=gLen(),y0=EG.y0,cz0=ZS+EG.R,cz1=cz0+EG.L;
   dimLine(V(X,0.03,0),V(X,0.03,HEAD_Z),V(0,1,0));label(`${fmt(P.LL)} m · ligne de faute → quille 1`,V(X,0.42,HEAD_Z/2));
   dimLine(V(X,0.03,0),V(X,0.03,APPROACH),V(0,1,0));label('approche 4,57 m',V(X,0.42,APPROACH/2));
   const zH=Math.max(cz0+0.6,(cz0+cz1)/2);
@@ -872,7 +909,7 @@ function buildDims(){
   dimLine(V(X,EG.hC,cz1+0.4),V(X,CEIL,cz1+0.4),V(0,0,1));label(`plafond ${fmt(CEIL)} m (hyp.)`,V(X,(EG.hC+CEIL)/2,cz1+1.6),0.26);
   dimLine(V(-W/2,EG.hC+0.25,ZS+EG.R+0.2),V(W/2,EG.hC+0.25,ZS+EG.R+0.2),V(0,1,0));
   label(`largeur ${P.N} pistes ${fmt(W)} m`,V(0,EG.hC+0.6,ZS+EG.R+0.2),Math.max(0.3,W/40));
-  {const pts=[];for(let i=0;i<=80;i++){const p=profile(totalS*i/80);pts.push(V(X,p.y,p.z));}
+  {const pts=[];for(let i=0;i<=80;i++){const p=profile((Hv+Math.PI*EG.R/2+EG.L)*i/80);pts.push(V(X,p.y,p.z));}
    dims.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts),160,0.045,8,false),new T.MeshBasicMaterial({color:0xff5a1f,toneMapped:false})));}
   if(human.visible){const h=human.position;dimLine(V(h.x-0.45,0,h.z),V(h.x-0.45,1.8,h.z),V(1,0,0));label('1,80 m',V(h.x-0.85,1.0,h.z),0.24);}
 }
@@ -925,23 +962,12 @@ function txt(str,x,s,sizeM,color,align='center',weight=700){sctx.font=`${weight}
 function glow(x,s,r,c0,c1='rgba(0,0,0,0)'){const g=sctx.createRadialGradient(X(x),Y(s),0,X(x),Y(s),r*PX);g.addColorStop(0,c0);g.addColorStop(1,c1);sctx.fillStyle=g;sctx.fillRect(X(x)-r*PX,Y(s)-r*PX,2*r*PX,2*r*PX);}
 
 // largeur d'image disponible au-dessus d'une piste (mur de TV) : la dalle qui couvre l'axe de la piste
-function brandBand(){ // bandeau de marque : réduit et calé dans la rangée haute sur un mur de TV
+function brandBand(){ // bandeau de marque : calé en haut de l'image, à la taille de la cellule sur un mur de TV
   if(!isTV())return{s0:totalS-0.6,band:0.62,sz:0.4};
   const band=Math.min(0.62,Math.max(0.14,totalS*0.2)),kb=band/0.62;
-  return{s0:totalS-TV.bez-0.1*kb-band/2,band,sz:Math.min(0.4*kb,TV.lay==='wall'?1:TV.aw*0.24)};
+  return{s0:totalS-0.1*kb-band/2,band,sz:Math.min(0.4*kb,TV.lay==='wall'?1:TV.cw*0.2)};
 }
-// emplacement du contenu d'une piste : sa dalle (une par piste), une demi-dalle (une par paire), ou l'axe de la piste (mur continu)
-function tvSlot(L){
-  if(!isTV()||TV.lay==='wall')return{cx:L.x,w:1.5};
-  if(TV.lay==='lane')return{cx:L.x,w:TV.aw-0.04};
-  return{cx:Lay.pairX[Math.floor(L.i/2)]+(L.i%2?1:-1)*TV.aw/4,w:TV.aw/2-0.05};
-}
-const fk=L=>isTV()?Math.min(1,tvSlot(L).w/1.5):1; // échelle des textes d'une piste
-function tvPanelW(cx){
-  if(TV.lay==='lane')return TV.aw-0.04;
-  let best=0;TV.xs.forEach(x=>{const d=Math.abs(x-cx);if(d<TV.aw/2)best=Math.max(best,2*(TV.aw/2-d)-0.04);});
-  return best>0.4?best:1.36;
-}
+const fk=()=>isTV()&&TV.lay!=='wall'?0.62:1; // les textes de strike restent dans la cellule de la piste
 function drawArena(t){
   const g=sctx,w=scr.width,h=scr.height,Hv=vLen(),W=Lay.W;
   const bg=g.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#0d0326');bg.addColorStop(1,'#1a0538');g.fillStyle=bg;g.fillRect(0,0,w,h);
@@ -961,9 +987,9 @@ function drawArena(t){
     const near=L.ballZ!==null?Math.max(0,1-(L.ballZ-Lay.HEAD_Z)/10):0,pul=0.5+0.5*Math.sin(t*3+i);
     glow(cx,0,0.75+0.15*pul,`rgba(255,60,200,${0.35+0.5*near})`);
     g.strokeStyle=`rgba(255,180,255,${0.4+0.5*near})`;g.lineWidth=0.03*PX;[0.3,0.5,0.7].forEach(r=>{g.beginPath();g.arc(X(cx),Y(0),r*PX*(1+0.04*pul),0,7);g.stroke();});
-    // V4 : sur un mur de TV, le panneau de score tient dans la dalle (ou la demi-dalle) de la piste, à l'échelle k
-    const bb=brandBand(),bbBot=bb.s0-bb.band/2,sl=tvSlot(L),pc=sl.cx;
-    const k=isTV()?Math.max(0.25,Math.min(1,sl.w/1.36,(bbBot-0.12)/0.89)):1;
+    // V4 : sur un mur de TV, le panneau de score se place sous le bandeau et se réduit si l'image est basse (échelle k)
+    const bb=brandBand(),bbBot=bb.s0-bb.band/2,pc=cx;
+    const k=isTV()?Math.max(0.25,Math.min(1,(bbBot-0.12)/0.89)):1;
     const top=isCurve()?Hv-0.06:isTV()?bbBot-0.07*k:Hv-0.98,bot=Math.max(0.05,top-0.89*k);
     if(top-bot>0.6*k&&!(!isCurve()&&(game==='boss'||game==='corde'||V3.big[game]))){g.globalCompositeOperation='source-over';
       g.fillStyle='rgba(8,4,24,.78)';g.fillRect(X(pc-0.68*k),Y(top),1.36*k*PX,(top-bot)*PX);
@@ -976,7 +1002,7 @@ function drawArena(t){
     }
     if(L.flash>0){const f=L.flash;g.fillStyle=`rgba(255,255,255,${0.35*f})`;g.fillRect(X(cx-LANE_GUT/2),0,LANE_GUT*PX,h);
       g.strokeStyle=`rgba(255,200,80,${f})`;g.lineWidth=0.1*PX;g.beginPath();g.arc(X(cx),Y(0),(1-f)*6*PX,0,7);g.stroke();
-      txt(L.flashText,tvSlot(L).cx,isTV()?Math.max(0.2,Hv*0.3):Math.max(0.35,Hv*0.5),(0.5+0.2*(1-f))*fk(L),`rgba(255,230,120,${Math.min(1,f*1.6)})`);
+      txt(L.flashText,cx,isTV()?Math.max(0.2,Hv*0.3):Math.max(0.35,Hv*0.5),(0.5+0.2*(1-f))*fk(),`rgba(255,230,120,${Math.min(1,f*1.6)})`);
       txt(L.flashText,cx,sC+2.2,0.6,`rgba(255,230,120,${Math.min(1,f*1.6)})`);}
   });
   g.globalCompositeOperation='source-over';
@@ -1000,7 +1026,7 @@ function drawOcean(t){
   g.fillStyle='rgba(220,250,255,.55)';bubbles.forEach(b=>{b.s+=b.v*0.0015;if(b.s>1)b.s=0;const x=-W/2+b.x*W+0.05*Math.sin(t*2+b.x*40);g.beginPath();g.arc(X(x),Y(b.s*totalS),b.r*PX,0,7);g.fill();});
   lanes.forEach(L=>{const bs=ballS(L);if(bs!==null){for(let k=0;k<14;k++){const ss=bs+k*0.18,x=L.ballX+0.12*Math.sin(k*1.7+t*6);if(ss<totalS){g.fillStyle=`rgba(255,255,255,${0.8-k*0.05})`;g.beginPath();g.arc(X(x),Y(ss),(0.04+k*0.006)*PX,0,7);g.fill();}}glow(L.ballX,bs,0.6,'rgba(200,255,255,.6)');}
     if(L.flash>0){const f=L.flash;g.strokeStyle=`rgba(255,255,255,${f})`;g.lineWidth=0.06*PX;[1,1.6,2.2].forEach(m=>{g.beginPath();g.arc(X(L.x),Y(0),(1-f)*m*3*PX,0,7);g.stroke();});
-      txt(L.flashText,tvSlot(L).cx,Math.max(0.35,vLen()*0.5),0.55*fk(L),`rgba(255,255,255,${Math.min(1,f*1.6)})`);}});
+      txt(L.flashText,L.x,Math.max(0.35,vLen()*0.5),0.55*fk(),`rgba(255,255,255,${Math.min(1,f*1.6)})`);}});
 }
 function drawCosmos(t){
   const g=sctx,w=scr.width,h=scr.height,Hv=vLen(),W=Lay.W;
@@ -1019,7 +1045,7 @@ function drawCosmos(t){
   lanes.forEach(L=>{const bs=ballS(L);if(bs!==null){glow(L.ballX,bs,0.8,'rgba(170,230,255,.95)','rgba(60,90,255,0)');
       const top=Math.min(totalS,bs+5),tg=g.createLinearGradient(0,Y(bs),0,Y(top));tg.addColorStop(0,'rgba(150,220,255,.8)');tg.addColorStop(1,'rgba(80,60,255,0)');g.fillStyle=tg;
       g.beginPath();g.moveTo(X(L.ballX-0.15),Y(bs));g.lineTo(X(L.ballX+0.15),Y(bs));g.lineTo(X(L.ballX),Y(top));g.fill();}
-    if(L.flash>0){const f=L.flash;glow(L.x,0,(1-f)*5+0.5,`rgba(255,240,200,${f})`);txt(L.flashText,tvSlot(L).cx,Math.max(0.35,Hv*0.5),0.55*fk(L),`rgba(255,240,200,${Math.min(1,f*1.6)})`);}});
+    if(L.flash>0){const f=L.flash;glow(L.x,0,(1-f)*5+0.5,`rgba(255,240,200,${f})`);txt(L.flashText,L.x,Math.max(0.35,Hv*0.5),0.55*fk(),`rgba(255,240,200,${Math.min(1,f*1.6)})`);}});
   g.globalCompositeOperation='source-over';
 }
 // écrans latéraux : u = profondeur (0 = côté quilles), v = hauteur (0 = sol)
@@ -1627,7 +1653,7 @@ Object.assign(INFO,{
 <li>Bas des écrans à protéger des quilles et des boules qui rebondissent : plaque de polycarbonate devant la dalle, ou bas d'écran remonté.</li>
 <li>Luminosité de 350 à 500 cd/m² en général, bien inférieure à un mur LED : très bien en salle sombre, plus terne en éclairage d'exploitation.</li>
 <li>Les jeux qui suivent la boule sous l'auvent (traînée lumineuse, Grand Prix au plafond) n'existent qu'avec l'écran LED incurvé.</li></ul>`},
- v4:{t:'Nouveautés V4',b:['adapt','Proposition'],btn:'Voir le mur de TV',d:['Mur de TV','6 tailles + taille libre','Vertical ou horizontal'],act:()=>{setScreenType('tv');goView('quilles');},html:`
+ v4:{t:'Nouveautés V4',b:['adapt','Proposition'],btn:'Voir le mur de TV',d:['Mur de TV','Tailles au choix','Photos et plans'],act:()=>{setScreenType('tv');goView('quilles');},html:`
 <p>L'écran LED peut maintenant être remplacé par des TV. Tout se règle en haut du panneau, dans « Réglage des TV ».</p>
 <h3>Ce que tu peux choisir</h3><ul>
 <li><b>Taille</b> : 55, 65, 75, 85, 98 ou 110 pouces, ou n'importe quelle taille de 43 à 120 pouces avec le curseur.</li>
@@ -1638,6 +1664,9 @@ Object.assign(INFO,{
 <li>Le nombre de TV à acheter, leurs dimensions hors tout, la hauteur du haut des écrans.</li>
 <li>La surface d'image, la part de la largeur couverte et le vide entre deux TV.</li>
 <li>Les dispositions qui ne passent pas (TV trop large pour une piste, rangées trop hautes) sont grisées.</li></ul>
+<h3>Exporter</h3><ul>
+<li><b>Photos</b> : la vue en cours ou une planche de 4 vues, en 16:9, avec la configuration en légende.</li>
+<li><b>Plan de principe A3</b> : élévation, coupes, vue en plan et nomenclature cotés, en PNG, PDF ou SVG.</li></ul>
 <p>Tu peux toujours revenir à l'écran LED incurvé ou droit pour comparer, avec les mêmes jeux.</p>
 <ul class="news"><li><button data-open="tv">Fiche de faisabilité du mur de TV</button><small>Matériel, fixation, limites réelles.</small></li></ul>`}
 });
@@ -2109,6 +2138,243 @@ renderer.domElement.addEventListener('pointermove',e=>{lastMove=e;if(hoverPendin
     const a=aimGeo.attributes.position.array;a[0]=L.x+R0;a[1]=0.012;a[2]=0;a[3]=L.x+off;a[4]=0.012;a[5]=Lay.HEAD_Z;aimGeo.attributes.position.needsUpdate=true;aimLine.computeLineDistances();aimLine.visible=true;}
   else{aimRing.visible=false;aimLine.visible=false;}});});
 renderer.domElement.addEventListener('pointerleave',()=>{aimRing.visible=false;aimLine.visible=false;});
+
+/* ---------- V4 : export de photos et de plans de principe ---------- */
+const XP={blob:null,name:'',svg:null,canvas:null,kind:''};
+const LAYTXT={lane:'une par piste',pair:'une par paire',wall:'mur continu'};
+function configLine(){
+  if(isTV())return `Mur de ${TV.n} TV ${TV.d}″ · pose ${TV.port?'verticale':'horizontale'} · ${LAYTXT[TV.lay]}${TV.rows>1?` · ${TV.rows} rangées`:''}`;
+  if(isCurve())return `Écran LED incurvé · auvent ${fmt(EG.L)} m · ${fmt(EG.hC)} m sous écran`;
+  if(screenType==='flat')return `Écran LED droit · ${fmt(Lay.W)} × ${fmt(gLen())} m`;
+  return screenType==='masks'?'Masques classiques':'Sans écran';
+}
+function fileSlug(){return isTV()?`tv${TV.d}${TV.port?'v':'h'}-${TV.lay==='lane'?'par-piste':TV.lay==='pair'?'par-paire':'mur'}`:{curve:'led-incurve',flat:'led-droit',masks:'masques',none:'sans-ecran'}[screenType];}
+const today=()=>new Date().toLocaleDateString('fr-FR');
+
+/* --- photos : rendu hors écran en 16:9, sans les « ? » --- */
+function grab(w,h,view){
+  const pr=renderer.getPixelRatio(),p0=camera.position.clone(),q0=camera.quaternion.clone(),f0=camera.fov,fd=scene.fog.density;
+  const vis=[hotGroup,aimRing,aimLine,human].map(o=>o.visible);
+  hotGroup.visible=aimRing.visible=aimLine.visible=false;if(view==='joueur')human.visible=false; // la silhouette masque la vue joueur en 16:9
+  let c=null;
+  try{
+    camera.aspect=w/h;
+    if(view){const v=VIEWS[view];camera.position.set(...v.p());camera.fov=v.fov;camera.lookAt(new T.Vector3(...v.t()));scene.fog.density=preset.fog[1]*(view==='cote'?0.08:view==='ensemble'?0.5:1);}
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(1);composer.setPixelRatio(1);renderer.setSize(w,h,false);composer.setSize(w,h);bloom.resolution.set(w/2,h/2);
+    v3BeforeRender();
+    if(useBloom)composer.render();else renderer.render(scene,camera);
+    c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(renderer.domElement,0,0,w,h);
+  }finally{
+    camera.position.copy(p0);camera.quaternion.copy(q0);camera.fov=f0;scene.fog.density=fd;
+    renderer.setPixelRatio(pr);composer.setPixelRatio(pr);resize();
+    [hotGroup,aimRing,aimLine,human].forEach((o,i)=>o.visible=vis[i]);
+  }
+  return c;
+}
+function legend(c,right){
+  const g=c.getContext('2d'),w=c.width,h=c.height,b=Math.round(h*0.075);
+  const gr=g.createLinearGradient(0,h-b*1.7,0,h);gr.addColorStop(0,'rgba(5,4,10,0)');gr.addColorStop(.5,'rgba(5,4,10,.85)');gr.addColorStop(1,'rgba(5,4,10,.96)');
+  g.fillStyle=gr;g.fillRect(0,h-b*1.7,w,b*1.7);
+  g.fillStyle='#ff5a1f';g.fillRect(b*0.5,h-b*0.92,b*0.08,b*0.6);
+  g.textBaseline='middle';g.textAlign='left';g.fillStyle='#ffffff';g.font=`700 ${b*0.5}px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`;
+  let x=b*0.78;'ONEST'.split('').forEach(ch=>{g.fillText(ch,x,h-b*0.6);x+=g.measureText(ch).width+b*0.16;});
+  g.font=`500 ${b*0.33}px "Barlow", Arial, sans-serif`;g.fillStyle='#ecebf3';g.fillText(`${configLine()} · ${P.N} pistes`,x+b*0.35,h-b*0.6);
+  g.textAlign='right';g.fillStyle='#9a97ad';g.font=`500 ${b*0.28}px "Barlow", Arial, sans-serif`;g.fillText(right,w-b*0.5,h-b*0.6);
+}
+function exportPhoto(){
+  const small=window.innerWidth<=720,w=small?1920:2560,h=small?1080:1440;
+  const c=grab(w,h,null);legend(c,`${VIEWS[viewKey].name} · ${today()}`);
+  c.toBlob(b=>showOut(b,`onest-bowling-${fileSlug()}-photo.jpg`,'photo',c),'image/jpeg',0.92);
+}
+function exportSheet(){
+  const small=window.innerWidth<=720,tw=small?960:1280,th=small?540:720,gap=8;
+  const views=['joueur','quilles','banquette',isCurve()?'sous':'ensemble'];
+  const c=document.createElement('canvas');c.width=tw*2+gap;c.height=th*2+gap+Math.round(th*0.16);
+  const g=c.getContext('2d');g.fillStyle='#05040a';g.fillRect(0,0,c.width,c.height);
+  views.forEach((k,i)=>{const t=grab(tw,th,k),x=(i%2)*(tw+gap),y=Math.floor(i/2)*(th+gap);g.drawImage(t,x,y);
+    const fs=Math.round(th*0.036);g.font=`600 ${fs}px "Barlow Condensed", "Arial Narrow", Arial, sans-serif`;const label=VIEWS[k].name.toUpperCase(),lw=g.measureText(label).width;
+    g.fillStyle='rgba(8,6,16,.78)';g.fillRect(x+fs*0.6,y+fs*0.6,lw+fs*1.2,fs*1.7);g.fillStyle='#ff5a1f';g.fillRect(x+fs*0.6,y+fs*0.6,fs*0.14,fs*1.7);
+    g.fillStyle='#fff';g.textBaseline='middle';g.textAlign='left';g.fillText(label,x+fs*1.2,y+fs*1.5);});
+  legend(c,`Planche 4 vues · ${today()}`);
+  c.toBlob(b=>showOut(b,`onest-bowling-${fileSlug()}-planche.jpg`,'photo',c),'image/jpeg',0.92);
+}
+
+/* --- plan de principe : feuille A3 paysage en SVG (cotes en mètres) --- */
+function planSVG(){
+  const N=P.N,W=Lay.W,HZ=Lay.HEAD_Z,ZS=Lay.ZS,y0=EG.y0,hC=EG.hC,Hv=gLen(),o=[];
+  const INK='#1b1b22',GREY='#7d7d8a',ACC='#e8501a',SCR='#ffd9c9',LANE='#f1e3c8',APP='#f8f1e3',BODY='#2a2a33',WALL='#e6e6ec';
+  const r2=v=>Math.round(v*100)/100,esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const line=(x1,y1,x2,y2,st=INK,sw=0.25,dash='')=>o.push(`<line x1="${r2(x1)}" y1="${r2(y1)}" x2="${r2(x2)}" y2="${r2(y2)}" stroke="${st}" stroke-width="${sw}"${dash?` stroke-dasharray="${dash}"`:''}/>`);
+  const rect=(x,y,w,h,fill='none',st=INK,sw=0.25,extra='')=>{if(w<0){x+=w;w=-w;}if(h<0){y+=h;h=-h;}o.push(`<rect x="${r2(x)}" y="${r2(y)}" width="${r2(w)}" height="${r2(h)}" fill="${fill}" stroke="${st}" stroke-width="${sw}"${extra}/>`);};
+  const text=(x,y,s,size=2.5,anchor='start',fill=INK,weight=400,rot=0)=>o.push(`<text x="${r2(x)}" y="${r2(y)}" font-size="${size}" text-anchor="${anchor}" fill="${fill}" font-weight="${weight}"${rot?` transform="rotate(${rot} ${r2(x)} ${r2(y)})"`:''}>${esc(s)}</text>`);
+  const dimH=(x1,x2,y,label,up=true,size=2.3)=>{line(x1,y,x2,y,GREY,0.18);line(x1,y-1.1,x1,y+1.1,GREY,0.18);line(x2,y-1.1,x2,y+1.1,GREY,0.18);text((x1+x2)/2,up?y-0.9:y+size+0.4,label,size,'middle',INK);};
+  const dimV=(x,y1,y2,label,left=true,size=2.3)=>{line(x,y1,x,y2,GREY,0.18);line(x-1.1,y1,x+1.1,y1,GREY,0.18);line(x-1.1,y2,x+1.1,y2,GREY,0.18);text(left?x-0.9:x+size+0.3,(y1+y2)/2,label,size,'middle',INK,400,-90);};
+  const title=(x,y,num,t,sc)=>{rect(x,y-3.6,4.6,4.6,INK,INK,0);text(x+2.3,y,num,3,'middle','#fff',700);text(x+6.4,y,t,3.1,'start',INK,700);if(sc)text(x+6.4,y+3.4,`échelle ≈ 1:${Math.round(1000/sc/5)*5}`,2.1,'start',GREY);};
+  const pin=(X,Y,s,cx,by=0)=>{const p=(dx,dy)=>`${r2(X(cx+dx))},${r2(Y(by+dy))}`;o.push(`<path d="M${p(-0.045,0)} L${p(-0.06,0.11)} L${p(-0.045,0.2)} L${p(-0.023,0.27)} L${p(-0.03,0.33)} L${p(0,0.381)} L${p(0.03,0.33)} L${p(0.023,0.27)} L${p(0.045,0.2)} L${p(0.06,0.11)} L${p(0.045,0)} Z" fill="#fff" stroke="${INK}" stroke-width="${s>14?0.2:0.12}"/>`);};
+  const PINX=[-0.4572,-0.3048,-0.1524,0,0.1524,0.3048,0.4572];
+  const mk=mode=>screenType==='masks'?{y1:1.075,y2:2.025}:{y1:2.78,y2:CEIL};
+  // écran vu de face
+  function frontScreen(X,Y,s,big){
+    if(isTV()){rect(X(-W/2),Y(CEIL),W*s,(CEIL-y0)*s,WALL,GREY,0.15);
+      TV.xs.forEach(cx=>{for(let r=0;r<TV.rows;r++){const yb=y0+r*TV.oh;rect(X(cx-TV.ow/2),Y(yb+TV.oh),TV.ow*s,TV.oh*s,BODY,INK,0.15);rect(X(cx-TV.aw/2),Y(yb+TV.bez+TV.ah),TV.aw*s,TV.ah*s,SCR,ACC,big?0.3:0.18);
+        if(big&&TV.aw*s>16){text(X(cx),Y(yb+TV.oh/2)-0.6,`TV ${TV.d}″`,3,'middle',ACC,700);text(X(cx),Y(yb+TV.oh/2)+3,`${fmt(TV.ow)} × ${fmt(TV.oh)} m`,2.2,'middle',INK);}}});}
+    else if(hasScreen()){rect(X(-W/2),Y(hC),W*s,(hC-y0)*s,SCR,ACC,0.3);if(isCurve())line(X(-W/2),Y(y0+Hv),X(W/2),Y(y0+Hv),ACC,0.18,'1.2 0.8');}
+    else if(screenType==='masks')Lay.pairX.forEach(x=>{const pw=LANE_GUT*2+DIV_IN;rect(X(x-pw/2),Y(2.025),pw*s,0.95*s,WALL,INK,0.2);});
+    else rect(X(-W/2),Y(CEIL),W*s,(CEIL-2.78)*s,WALL,INK,0.2);
+  }
+  // écran vu en coupe (z horizontal)
+  function sideScreen(X,Y,s,zmax){
+    if(isTV()){const zb=ZS-0.012-TV.depth;rect(X(zb-0.06),Y(CEIL),0.06*s,(CEIL-y0)*s,WALL,GREY,0.15);
+      for(let r=0;r<TV.rows;r++)rect(X(zb),Y(y0+(r+1)*TV.oh),(TV.depth+0.012)*s,TV.oh*s,BODY,INK,0.15);
+      line(X(ZS),Y(y0+TV.bez),X(ZS),Y(hC-TV.bez),ACC,0.7);}
+    else if(hasScreen()){const pts=[],tot=Hv+Math.PI*EG.R/2+EG.L;let cut=false;for(let i=0;i<=120;i++){const p=profile(tot*i/120);if(p.z>zmax){cut=true;break;}pts.push(`${r2(X(p.z))},${r2(Y(p.y))}`);}
+      o.push(`<polyline points="${pts.join(' ')}" fill="none" stroke="${ACC}" stroke-width="0.9" stroke-linejoin="round"/>`);
+      if(cut){const xe=X(zmax);line(xe,Y(hC)-2.2,xe,Y(hC)+2.2,ACC,0.25,'0.8 0.6');text(xe-1,Y(hC)-2.8,'auvent →',2.1,'end',ACC);}}
+    else if(screenType==='masks')rect(X(HZ-0.41),Y(2.025),0.12*s,0.95*s,WALL,INK,0.2);
+    else rect(X(HZ+0.24),Y(CEIL),0.12*s,(CEIL-2.78)*s,WALL,INK,0.2);
+  }
+  o.push(`<rect x="0" y="0" width="420" height="297" fill="#ffffff"/>`);
+  rect(6,6,408,285,'none',INK,0.5);
+
+  /* 1 · élévation de face */
+  {const zx=10,zy=10,zw=400,zh=80,s=Math.min((zw-44)/W,(zh-30)/CEIL),cx=zx+zw/2-4,base=zy+zh-11,X=x=>cx+x*s,Y=y=>base-y*s;
+   title(zx,zy+5,'1','ÉLÉVATION DE FACE · vue depuis les joueurs, côté quilles',s);
+   line(X(-W/2)-4,Y(CEIL),X(W/2)+4,Y(CEIL),GREY,0.2,'1.5 1');text(X(-W/2),Y(CEIL)-1.3,`plafond ${fmt(CEIL)} m (hyp.)`,2.1,'start',GREY);
+   frontScreen(X,Y,s,false);
+   lanes.forEach((L,i)=>{rect(X(L.x-LANE_W/2),Y(0.04),LANE_W*s,0.04*s,LANE,INK,0.12);if(s>4.5)PINX.forEach(dx=>pin(X,Y,s,L.x+dx));if(LANE_GUT*s>5)text(X(L.x),Y(0)+3.2,String(i+1),2.1,'middle',GREY);});
+   Lay.pairEdges.forEach(x=>rect(X(x-DIV_PAIR/2),Y(0.36),DIV_PAIR*s,0.36*s,'#d9d9e0',INK,0.12));
+   line(X(-W/2)-4,Y(0),X(W/2)+4,Y(0),INK,0.45);
+   dimH(X(-W/2),X(W/2),Y(0)+6.2,`largeur des ${N} pistes : ${fmt(W)} m`,false);
+   if(hasScreen()){const xr=X(W/2)+7;dimV(xr,Y(0),Y(y0),fmt(y0));dimV(xr,Y(y0),Y(hC),fmt(hC-y0));dimV(xr+7,Y(0),Y(hC),fmt(hC));text(xr-3,Y(hC)-2.2,isTV()?'haut des TV':"haut de l'écran",2.1,'start',GREY);}
+  }
+
+  /* 2 · détail d'une paire */
+  {const zx=10,zy=96,zw=128,zh=142,pm=Lay.pairX[Math.floor(Lay.pairX.length/2)],hw=LANE_GUT+DIV_IN/2+0.3,s=Math.min((zw-34)/(2*hw),(zh-34)/CEIL),cx=zx+zw/2+2,base=zy+zh-16,X=x=>cx+(x-pm)*s,Y=y=>base-y*s;
+   title(zx,zy+5,'2',"DÉTAIL · élévation d'une paire de pistes",s);
+   o.push(`<clipPath id="c2"><rect x="${r2(X(pm-hw))}" y="${r2(Y(CEIL)-1)}" width="${r2(2*hw*s)}" height="${r2(CEIL*s+2)}"/></clipPath><g clip-path="url(#c2)">`);
+   line(X(pm-hw),Y(CEIL),X(pm+hw),Y(CEIL),GREY,0.2,'1.5 1');
+   frontScreen(X,Y,s,true);
+   const pl=lanes.filter(L=>Math.abs(L.x-pm)<LANE_GUT);
+   pl.forEach(L=>{rect(X(L.x-LANE_GUT/2),Y(0.02),GUT_W*s,0.05*s,'#cfcfd6',INK,0.12);rect(X(L.x+LANE_W/2),Y(0.02),GUT_W*s,0.05*s,'#cfcfd6',INK,0.12);rect(X(L.x-LANE_W/2),Y(0.045),LANE_W*s,0.045*s,LANE,INK,0.15);PINX.forEach(dx=>pin(X,Y,s,L.x+dx));});
+   rect(X(pm-DIV_IN/2),Y(0.3),DIV_IN*s,0.3*s,'#d9d9e0',INK,0.12);
+   [-1,1].forEach(d=>rect(X(pm+d*(LANE_GUT+DIV_IN/2)),Y(0.36),d*DIV_PAIR*s,0.36*s,'#d9d9e0',INK,0.12));
+   line(X(pm-hw),Y(0),X(pm+hw),Y(0),INK,0.45);o.push('</g>');
+   text(X(pm),Y(CEIL)-1.2,`plafond ${fmt(CEIL)} m (hyp.)`,2.1,'middle',GREY);
+   if(pl.length){const L=pl[0];dimH(X(L.x-LANE_W/2),X(L.x+LANE_W/2),Y(0)+5,`piste ${fmt(LANE_W,3)}`,false);if(pl[1])dimH(X(pl[0].x),X(pl[1].x),Y(0)+10.5,`entraxe ${fmt(pl[1].x-pl[0].x)}`,false);
+     pl.forEach(L=>text(X(L.x),Y(0.6),`piste ${L.i+1}`,2.2,'middle',GREY));}
+   const xl=X(pm-hw)-4,xr=X(pm+hw)+4;
+   dimV(xr,Y(0),Y(0.381),'',false);text(xr+1.8,Y(0.19)+0.8,'quille 0,38',2.1,'start',INK);
+   if(hasScreen()){dimV(xl,Y(0),Y(y0),`bas ${fmt(y0)}`);dimV(xl,Y(y0),Y(hC),isTV()&&TV.rows>1?`${TV.rows} × ${fmt(TV.oh)} = ${fmt(hC-y0)}`:`écran ${fmt(hC-y0)}`);dimV(xl-6.5,Y(0),Y(hC),`haut ${fmt(hC)}`);
+     if(y0>0.45){dimV(xr,Y(0.381),Y(y0),'',false);text(xr+1.8,Y((0.381+y0)/2)+0.8,`libre ${fmt(y0-0.381)}`,2.1,'start',INK);}
+     if(isTV()){const vis=TV.xs.filter(x=>Math.abs(x-pm)<hw-TV.ow/2+0.01);if(vis.length){const a=vis[0];dimH(X(a-TV.ow/2),X(a+TV.ow/2),Y(hC)-3.2,`TV ${fmt(TV.ow)}`);
+       if(vis[1]&&vis[1]-a-TV.ow>0.05)dimH(X(a+TV.ow/2),X(vis[1]-TV.ow/2),Y(hC)-3.2,fmt(vis[1]-a-TV.ow));}}}
+  }
+
+  /* 3 · coupe de détail côté quilles */
+  {const zx=142,zy=96,zw=104,zh=142,zmin=Lay.PIT_END-0.25,zmax=Math.max(HZ+1.7,ZS+EG.R+1.3),s=Math.min((zw-26)/(zmax-zmin),(zh-34)/CEIL),x0=zx+13,base=zy+zh-16,X=z=>x0+(z-zmin)*s,Y=y=>base-y*s;
+   title(zx,zy+5,'3','COUPE · côté quilles',s);
+   line(X(zmin),Y(CEIL),X(zmax),Y(CEIL),GREY,0.2,'1.5 1');
+   rect(X(Lay.PIT_END),Y(0),PIT_LEN*s,0.12*s,'#d9d9e0',INK,0.15);
+   rect(X(Lay.DECK_END),Y(0.045),(zmax-Lay.DECK_END)*s,0.045*s,LANE,INK,0.15);
+   if(screenType!=='masks'){rect(X(Lay.DECK_END-0.15),Y(STRING_TOP),(DECK_LEN+0.35)*s,(STRING_TOP-1.05)*s,'none',GREY,0.2,' stroke-dasharray="1.2 0.8"');text(X(HZ-DECK_LEN/2+0.02),Y(STRING_TOP)-1.2,'machine à ficelles',2,'middle',GREY);
+     for(let k=0;k<4;k++)line(X(HZ-k*ROW),Y(0.381),X(HZ-k*ROW),Y(1.05),GREY,0.1);}
+   for(let k=3;k>=0;k--)pin(X,Y,s,HZ-k*ROW,0.045);
+   sideScreen(X,Y,s,zmax);
+   line(X(zmin),Y(0),X(zmax),Y(0),INK,0.45);
+   line(X(HZ),Y(0)+0.5,X(HZ),Y(0)+3,INK,0.2);text(X(HZ),Y(0)+5.4,'quille 1',2.1,'middle',INK);
+   text(X(zmax),Y(0)+5.4,'joueurs →',2.1,'end',GREY);
+   if(hasScreen()){const off=ZS-HZ;if(Math.abs(off)>0.03){dimH(X(Math.min(HZ,ZS)),X(Math.max(HZ,ZS)),Y(0)+9.5,fmt(Math.abs(off)),false);}
+     text(X(zmin),Y(0)+13.6,`écran ${fmt(Math.abs(off))} m ${off>=0?'devant':'derrière'} la quille 1`,2.1,'start',INK);
+     const xr=X(ZS)+9;dimV(xr,Y(0),Y(y0),fmt(y0),false);dimV(xr,Y(y0),Y(y0+Hv),fmt(Hv),false);
+     if(isTV())text(X(ZS-0.012-TV.depth)-1.2,Y(CEIL-0.25),'fronton',2,'end',GREY);}
+   dimV(X(zmax)-1,Y(0),Y(CEIL),fmt(CEIL),true);
+  }
+
+  /* 4 · vue en plan */
+  {const zx=250,zy=96,zw=160,zh=142,zmin=Lay.PIT_END-0.3,zmax=APPROACH+0.3,s=Math.min((zw-16)/(zmax-zmin),(zh-34)/W),x0=zx+11,yc=zy+15+(zh-34)/2,X=z=>x0+(z-zmin)*s,Y=x=>yc+x*s;
+   title(zx,zy+5,'4','VUE EN PLAN',s);
+   rect(X(0),Y(-W/2),APPROACH*s,W*s,APP,INK,0.2);
+   rect(X(Lay.PIT_END),Y(-W/2),PIT_LEN*s,W*s,'#d9d9e0',INK,0.2);
+   lanes.forEach(L=>{rect(X(Lay.DECK_END),Y(L.x-LANE_GUT/2),(0-Lay.DECK_END)*s,LANE_GUT*s,'#e2e2e8',GREY,0.08);rect(X(Lay.DECK_END),Y(L.x-LANE_W/2),(0-Lay.DECK_END)*s,LANE_W*s,LANE,INK,0.1);});
+   if(isCurve()){o.push(`<pattern id="h4" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="1.6" stroke="${ACC}" stroke-width="0.25"/></pattern>`);
+     rect(X(ZS),Y(-W/2),(EG.R+EG.L)*s,W*s,'url(#h4)',ACC,0.3);text(X(ZS+(EG.R+EG.L)/2),Y(-W/2)-1.3,`emprise de l'auvent ${fmt(EG.R+EG.L)} m`,2.2,'middle',ACC,700);}
+   else if(isTV())TV.xs.forEach(cx=>line(X(ZS),Y(cx-TV.ow/2),X(ZS),Y(cx+TV.ow/2),ACC,0.9));
+   else if(hasScreen())line(X(ZS),Y(-W/2),X(ZS),Y(W/2),ACC,0.9);
+   line(X(0),Y(-W/2),X(0),Y(W/2),INK,0.5);
+   text(X(APPROACH/2),Y(0)+0.8,'approche',2.3,'middle',GREY,400,-90);text(X(0)+2.6,Y(-W/2)-1.3,'ligne de faute',2.1,'start',INK);
+   if(!isCurve()&&hasScreen())text(X(ZS),Y(-W/2)-1.3,isTV()?'TV':'écran',2.2,'middle',ACC,700);
+   dimH(X(HZ),X(0),Y(W/2)+5,`ligne de faute → quille 1 : ${fmt(P.LL)} m`,false);dimH(X(0),X(APPROACH),Y(W/2)+5,fmt(APPROACH),false);
+   dimH(X(Lay.PIT_END),X(APPROACH),Y(W/2)+11,`longueur totale ${fmt(APPROACH-Lay.PIT_END)} m`,false);
+   dimV(X(Lay.PIT_END)-4,Y(-W/2),Y(W/2),`${fmt(W)} m`);
+  }
+
+  /* 5 · coupe longitudinale */
+  {const zx=10,zy=244,zw=226,zh=43,zmin=Lay.PIT_END-0.4,zmax=APPROACH+0.6,s=Math.min((zw-14)/(zmax-zmin),(zh-19)/CEIL),x0=zx+8,base=zy+zh-8,X=z=>x0+(z-zmin)*s,Y=y=>base-y*s;
+   title(zx,zy+4,'5','COUPE LONGITUDINALE',s);
+   line(X(zmin),Y(CEIL),X(zmax),Y(CEIL),GREY,0.2,'1.5 1');
+   rect(X(Lay.DECK_END),Y(0.05),(0-Lay.DECK_END)*s,0.05*s,LANE,INK,0.12);rect(X(0),Y(0.05),APPROACH*s,0.05*s,APP,INK,0.12);
+   for(let k=3;k>=0;k--)pin(X,Y,s,HZ-k*ROW,0.05);
+   sideScreen(X,Y,s,zmax);
+   line(X(zmin),Y(0),X(zmax),Y(0),INK,0.45);line(X(0),Y(0),X(0),Y(0.25),INK,0.4);
+   const hz=1.0;line(X(hz),Y(0),X(hz),Y(1.52),INK,0.5);o.push(`<circle cx="${r2(X(hz))}" cy="${r2(Y(1.66))}" r="${r2(0.13*s)}" fill="#fff" stroke="${INK}" stroke-width="0.3"/>`);text(X(hz)+1.6,Y(1.85),'1,80 m',2,'start',GREY);
+   if(hasScreen()){const ty=y0+Hv/2,d=Math.hypot(hz-ZS,1.62-ty);line(X(hz),Y(1.62),X(ZS),Y(ty),ACC,0.2,'1.4 0.9');text(X((hz+ZS)/2),Y((1.62+ty)/2)-1.2,`œil → écran : ${fmt(d,1)} m`,2.2,'middle',ACC);}
+   dimH(X(HZ),X(0),Y(0)+4.6,`${fmt(P.LL)} m`,false);dimH(X(0),X(APPROACH),Y(0)+4.6,`approche ${fmt(APPROACH)}`,false);
+  }
+
+  /* nomenclature et cartouche */
+  {const x=242,y=244,rows=[['Pistes',`${N} · ${fmt(P.LL)} m de la ligne de faute à la quille 1`],['Largeur',`${fmt(W)} m pour les ${N} pistes`]];
+   if(isTV()){const img=TV.n*TV.aw*TV.ah;rows.push(['Écran',`${TV.n} TV de ${TV.d}″ (16:9), pose ${TV.port?'verticale':'horizontale'}`],['Disposition',`${LAYTXT[TV.lay]} · ${TV.xs.length} colonne${TV.xs.length>1?'s':''} × ${TV.rows} rangée${TV.rows>1?'s':''}`],
+     ['Une TV',`${fmt(TV.ow)} × ${fmt(TV.oh)} m hors tout · image ${fmt(TV.aw)} × ${fmt(TV.ah)} m`],['Hauteurs',`bas ${fmt(y0)} m · haut ${fmt(hC)} m · plafond ${fmt(CEIL)} m`],['Image',`${fmt(img,1)} m² au total · ${fmt(img/N,1)} m² par piste`]);}
+   else if(hasScreen()){const tot=Hv+Math.PI*EG.R/2+EG.L;rows.push(['Écran',isCurve()?'LED incurvé avec auvent':'LED droit'],['Dimensions',isCurve()?`déplié ${fmt(tot)} × ${fmt(W)} m · rayon ${fmt(EG.R)} m`:`${fmt(W)} × ${fmt(Hv)} m`],
+     ['Hauteurs',`bas ${fmt(y0)} m · ${isCurve()?'sous auvent':'haut'} ${fmt(hC)} m · plafond ${fmt(CEIL)} m`],['Surface LED',`${fmt(W*tot,1)} m² · ${fmt(W*tot/N,1)} m² par piste`]);if(isCurve())rows.push(['Auvent',`${fmt(EG.L)} m au-dessus de la piste`]);}
+   else rows.push(['Écran',screenType==='masks'?'masques classiques par paire':'aucun, bandeau noir']);
+   text(x,y+4,'NOMENCLATURE',3.1,'start',INK,700);line(x,y+6,x+84,y+6,INK,0.3);
+   rows.forEach((r,i)=>{text(x,y+10.6+i*4.5,r[0],2.2,'start',GREY);text(x+17,y+10.6+i*4.5,r[1],2.2,'start',INK);});
+   const cx=330,cy=244,cw=80,ch=43;rect(cx,cy,cw,ch,'none',INK,0.45);line(cx,cy+13,cx+cw,cy+13,INK,0.25);line(cx,cy+29,cx+cw,cy+29,INK,0.25);
+   rect(cx+3.5,cy+3.4,0.9,6.6,ACC,ACC,0);o.push(`<text x="${cx+6.6}" y="${cy+9.6}" font-size="7.4" font-weight="700" fill="${INK}" letter-spacing="2.4">ONEST</text>`);
+   text(cx+cw-3,cy+6,'Bowling immersif',2.4,'end',GREY);text(cx+cw-3,cy+10,today(),2.4,'end',INK);
+   text(cx+3.5,cy+18.4,'PLAN DE PRINCIPE',3.4,'start',INK,700);text(cx+3.5,cy+22.6,'Écran au-dessus des pistes',2.4,'start',INK);
+   const cl=configLine().split(' · ');text(cx+3.5,cy+26.6,cl.slice(0,2).join(' · '),2.2,'start',ACC,700);
+   text(cx+3.5,cy+33.2,'Document de principe, non contractuel.',2.1,'start',INK);text(cx+3.5,cy+36.6,'Cotes en mètres, à vérifier sur site.',2.1,'start',INK);text(cx+3.5,cy+40,'Format A3 paysage.',2.1,'start',GREY);
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 297" width="420mm" height="297mm" font-family="Arial, Helvetica, sans-serif">${o.join('')}</svg>`;
+}
+function exportPlan(){
+  const svg=planSVG(),img=new Image(),k=8;
+  img.onload=()=>{const c=document.createElement('canvas');c.width=420*k;c.height=297*k;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+    c.toBlob(b=>{XP.svg=svg;showOut(b,`onest-bowling-${fileSlug()}-plan-de-principe.png`,'plan',c);},'image/png');};
+  img.onerror=()=>toast("Le plan n'a pas pu être dessiné sur cet appareil");
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
+
+/* --- fenêtre d'export --- */
+function showOut(blob,name,kind,canvas){
+  if(!blob){toast("L'image n'a pas pu être créée");return;}
+  if(XP.url)URL.revokeObjectURL(XP.url);
+  XP.blob=blob;XP.name=name;XP.kind=kind;XP.canvas=canvas;XP.url=URL.createObjectURL(blob);if(kind!=='plan')XP.svg=null;
+  $('xpImg').src=XP.url;$('xpImg').alt=kind==='plan'?'Plan de principe':'Photo du bowling';$('xpOut').hidden=false;$('xpOut').dataset.kind=kind;
+  $('xpDl').textContent=kind==='plan'?'Télécharger le plan (PNG)':'Télécharger la photo (JPG)';$('xpSvg').hidden=$('xpPdf').hidden=kind!=='plan';
+  $('xpInfo').textContent=`${canvas.width} × ${canvas.height} px · ${(blob.size/1048576).toLocaleString('fr-FR',{maximumFractionDigits:1})} Mo`;
+  $('xp').scrollTop=$('xp').scrollHeight;
+}
+function dl(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);}
+function busy(btn,fn){const t=btn.textContent;btn.disabled=true;btn.textContent='Préparation…';setTimeout(()=>{try{fn();}catch(e){toast("L'export a échoué : "+e.message);}btn.disabled=false;btn.textContent=t;},60);}
+$('xpOpen').onclick=()=>{$('card').hidden=true;$('xp').hidden=false;$('xpCfg').textContent=`${configLine()} · ${P.N} pistes`;};
+$('xpX').onclick=()=>{$('xp').hidden=true;};
+$('xpPhoto').onclick=e=>busy(e.currentTarget,exportPhoto);
+$('xpSheet').onclick=e=>busy(e.currentTarget,exportSheet);
+$('xpPlan').onclick=e=>busy(e.currentTarget,exportPlan);
+$('xpDl').onclick=()=>{if(XP.blob)dl(XP.blob,XP.name);};
+$('xpSvg').onclick=()=>{if(XP.svg)dl(new Blob([XP.svg],{type:'image/svg+xml'}),XP.name.replace(/\.png$/,'.svg'));};
+$('xpPdf').onclick=e=>{
+  if(!XP.canvas||XP.kind!=='plan')return;const btn=e.currentTarget,t=btn.textContent;
+  const make=()=>{try{const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a3'});doc.addImage(XP.canvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,420,297);dl(doc.output('blob'),XP.name.replace(/\.png$/,'.pdf'));}catch(err){toast('Le PDF a échoué : '+err.message);}btn.disabled=false;btn.textContent=t;};
+  btn.disabled=true;btn.textContent='Préparation…';
+  if(window.jspdf)return make();
+  const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';sc.onload=make;
+  sc.onerror=()=>{btn.disabled=false;btn.textContent=t;toast('PDF indisponible hors connexion : prends le PNG ou le SVG');};document.head.appendChild(sc);
+};
 
 /* ---------- Boucle ---------- */
 syncScreenUI();readScreenSliders();readVenueSliders();buildVenue();syncTVUI();resize();goView('joueur',true);
