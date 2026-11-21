@@ -747,7 +747,7 @@ const screenGroup=new T.Group();scene.add(screenGroup);
 let screenMesh=null,housingMesh=null,totalS=1,sC=1,PX=100;
 const scr=document.createElement('canvas');const sctx=scr.getContext('2d');
 const scrTex=new T.CanvasTexture(scr);scrTex.encoding=T.sRGBEncoding;scrTex.anisotropy=ANISO;
-const scrMat=new T.MeshBasicMaterial({map:scrTex,toneMapped:false});
+const scrMat=new T.MeshBasicMaterial({map:scrTex,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-4});
 const rects={v:new T.RectAreaLight(0xffffff,4,1,1),a:new T.RectAreaLight(0xffffff,4,1,1),c:new T.RectAreaLight(0xffffff,4,1,1)};
 Object.values(rects).forEach(r=>screenGroup.add(r));
 
@@ -777,7 +777,7 @@ function buildScreen(){
     for(let i=0;i<ss.length-1;i++)for(let j=0;j<cols;j++){const a=i*(cols+1)+j,b=a+1,c=a+cols+1,d=c+1;idx.push(a,b,c,b,d,c);}
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;}
   if(screenMesh){screenMesh.geometry.dispose();housingMesh.geometry.dispose();}
-  else{screenMesh=new T.Mesh(undefined,scrMat);housingMesh=new T.Mesh(undefined,M.housing);screenMesh.frustumCulled=false;housingMesh.frustumCulled=false;screenGroup.add(screenMesh,housingMesh);}
+  else{screenMesh=new T.Mesh(undefined,scrMat);housingMesh=new T.Mesh(undefined,M.housing);screenMesh.frustumCulled=false;housingMesh.frustumCulled=false;screenMesh.renderOrder=2;screenGroup.add(screenMesh,housingMesh);}
   if(isTV()){screenMesh.geometry=makeTV();housingMesh.geometry=new T.BufferGeometry();}
   else{screenMesh.geometry=make(0);housingMesh.geometry=make(0.09);}
   housingMesh.visible=!isTV();buildTVWall();
@@ -1138,6 +1138,7 @@ function applyLight(k){
 
 /* ---------- Post-traitement ---------- */
 const composer=new T.EffectComposer(renderer);
+if(renderer.capabilities.isWebGL2)[composer.renderTarget1,composer.renderTarget2].forEach(rt=>{const dt=new T.DepthTexture(rt.width,rt.height);dt.type=T.UnsignedIntType;rt.depthTexture=dt;}); // profondeur 24 bits au lieu de 16
 composer.addPass(new T.RenderPass(scene,camera));
 const bloom=new T.UnrealBloomPass(new T.Vector2(512,512),0.9,0.5,0.6);composer.addPass(bloom);
 const tonePass=new T.ShaderPass({uniforms:{tDiffuse:{value:null},exposure:{value:1}},
@@ -1363,11 +1364,11 @@ function fireJets(L){[-1,1].forEach(s=>{const j=jetPool.find(j=>j.t<0);if(!j)ret
 /* --- replay au ralenti (caméra au-dessus des quilles + incrustation) --- */
 const replayRT=new T.WebGLRenderTarget(384,240);
 const pinCam=new T.PerspectiveCamera(40,384/240,0.05,80);
-const pip=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:replayRT.texture,toneMapped:false}));pip.visible=false;pip.frustumCulled=false;scene.add(pip);
+const pip=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:replayRT.texture,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-12}));pip.renderOrder=4;pip.visible=false;pip.frustumCulled=false;scene.add(pip);
 const pipFrameTex=canvasTex(340,250,(g,w,h)=>{g.fillStyle='#07050f';g.fillRect(0,0,w,h);g.fillStyle='#ff2a4a';g.beginPath();g.arc(20,20,7,0,7);g.fill();
   g.fillStyle='#fff';g.font='700 23px "Barlow Condensed", Arial Narrow, sans-serif';g.textBaseline='middle';g.fillText('REPLAY',34,21);
   g.fillStyle='#ffc21a';g.textAlign='right';g.fillText('RALENTI ×3',w-14,21);g.fillStyle='#ff5a1f';g.fillRect(0,h-4,w,4);});
-const pipFrame=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:pipFrameTex,toneMapped:false}));pipFrame.visible=false;pipFrame.frustumCulled=false;scene.add(pipFrame);
+const pipFrame=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:pipFrameTex,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-8}));pipFrame.renderOrder=3;pipFrame.visible=false;pipFrame.frustumCulled=false;scene.add(pipFrame);
 function placePip(L){let x=L.x,y,z,h;
   if(isTV()){x=TV.xs.reduce((a,b)=>Math.abs(b-L.x)<Math.abs(a-L.x)?b:a,TV.xs[0]);h=Math.min(0.85,(TV.aw-0.06)/1.7,(TV.ah-0.06)/1.25);y=EG.y0+TV.bez+TV.ah*0.45;z=Lay.ZS+0.04;}
   else if(hasScreen()){h=Math.min(0.85,vLen()*0.58);y=EG.y0+Math.max(h*0.65,Math.min(vLen()*0.5,vLen()-h*0.65));z=Lay.ZS+0.04;}
